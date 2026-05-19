@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4Klink Admin Panel (Robust Parser)</title>
+    <title>4Klink Admin Panel (Image Auto-Compress)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -91,7 +91,7 @@
         <label>Movie Title</label>
         <input type="text" id="movieTitle" placeholder="e.g., Movie Name">
         
-        <label>Movie Poster Image</label>
+        <label>Movie Poster Image (Auto-Compresses)</label>
         <input type="file" id="moviePoster" accept="image/*">
         
         <label>Watch / Link URL</label>
@@ -115,7 +115,6 @@
     let currentSha = "";
     let movieFeedData = [];
 
-    // Safe Base64 decoding wrapper that handles UTF-8 correctly
     function decodeBase64ToText(base64Str) {
         const decoded = atob(base64Str.replace(/\s/g, ''));
         try {
@@ -151,17 +150,12 @@
             const data = await response.json();
             currentSha = data.sha;
             
-            // 1. Decode the complete raw file text layout
             const rawContentText = decodeBase64ToText(data.content);
-            
-            // 2. Smart Parser: Locate anything after "movieFeedData =" up to the semicolon
             const match = rawContentText.match(/movieFeedData\s*=\s*([\s\S]*?);/);
             
             if (match && match[1]) {
-                const jsonString = match[1].trim();
-                movieFeedData = JSON.parse(jsonString);
+                movieFeedData = JSON.parse(match[1].trim());
             } else {
-                // Fallback plan if the file format is completely blank or missing structures
                 movieFeedData = [];
             }
 
@@ -171,7 +165,7 @@
             renderMovieList();
 
         } catch (err) {
-            statusDiv.innerText = `❌ Error: ${err.message}. Check token or repository files.`;
+            statusDiv.innerText = `❌ Error: ${err.message}. Please clear movies.js data on GitHub.`;
             statusDiv.style.color = "#ff5252";
         }
     }
@@ -199,11 +193,29 @@
         });
     }
 
-    function imageToBase64(file) {
+    // New internal function to shrink down large smartphone images instantly
+    function compressImage(file) {
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    // Lock dimensions to thumbnail poster size
+                    const MAX_WIDTH = 300;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+
+                    const ctx = canvas.getContext('2array') || canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Compress to a highly efficient, lightweight JPEG file format representation
+                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                };
+            };
         });
     }
 
@@ -262,14 +274,17 @@
             return;
         }
 
-        const base64Image = await imageToBase64(fileInput.files[0]);
-        movieFeedData.unshift({ title: title, poster: base64Image, link: link });
+        statusDiv.innerText = "Compressing poster image...";
+        statusDiv.style.color = "#ffc107";
+
+        const compressedBase64Image = await compressImage(fileInput.files[0]);
+        movieFeedData.unshift({ title: title, poster: compressedBase64Image, link: link });
         
         document.getElementById("movieTitle").value = "";
         document.getElementById("movieLink").value = "";
         fileInput.value = "";
 
-        await pushUpdateToGitHub(movieFeedData, "Added new movie post");
+        await pushUpdateToGitHub(movieFeedData, "Added new movie post with optimized compressed image");
     }
 
     async function editPost(index) {
