@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4klink Admin - Direct Control</title>
+    <title>4Klink Admin Panel</title>
     <style>
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: Arial, sans-serif;
             background-color: #141414;
             color: #ffffff;
             margin: 0;
@@ -15,221 +15,200 @@
             flex-direction: column;
             align-items: center;
         }
-
-        .dashboard-container {
-            width: 90%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
-        }
-
-        h2.section-title {
-            color: #d78a76;
-            margin-top: 0;
-            margin-bottom: 15px;
-            font-size: 1.5rem;
-            border-bottom: 2px solid #4a455a;
-            padding-bottom: 8px;
-        }
-
-        .upload-section {
+        .container {
+            width: 100%;
+            max-width: 450px;
             background-color: #222222;
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid #4a455a;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
-
-        label {
-            font-size: 0.9rem;
-            color: #b0aec2;
-            display: block;
-            margin-top: 12px;
-            margin-bottom: 5px;
-        }
-
-        input[type="text"], input[type="file"] {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #555;
-            background-color: #333;
-            color: #fff;
+            padding: 20px;
+            border-radius: 10px;
             box-sizing: border-box;
-            font-size: 0.95rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
-
-        button {
-            padding: 12px;
-            font-weight: bold;
-            font-size: 1rem;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
+        h2 { text-align: center; color: #d78a76; margin-top: 0; }
+        label { display: block; margin-top: 12px; color: #aaa; font-size: 0.9rem; }
+        input[type="text"], input[type="file"], input[type="password"] {
             width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
             background-color: #d78a76;
             color: #141414;
-            margin-top: 20px;
-        }
-
-        #status-msg {
-            text-align: center;
+            border: none;
             font-weight: bold;
-            margin-top: 15px;
-            font-size: 0.9rem;
-            color: #aaa;
-            line-height: 1.4;
+            border-radius: 5px;
+            margin-top: 20px;
+            cursor: pointer;
         }
-
-        .management-section {
-            background-color: #1a1a1a;
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #333;
+        #status {
+            text-align: center;
+            margin-top: 15px;
+            font-weight: bold;
+            color: #ffc107;
+            font-size: 0.95rem;
         }
     </style>
 </head>
 <body>
 
-<div class="dashboard-container">
+<div class="container">
+    <h2>4Klink Dashboard</h2>
+    
+    <label>GitHub Personal Access Token (ghp_...)</label>
+    <input type="password" id="ghToken" placeholder="Paste your full token here">
+    <button onclick="connectToDatabase()" style="margin-top: 8px; background-color: #4caf50; color: white;">Connect Database</button>
+    
+    <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
 
-    <div class="upload-section">
-        <h2 class="section-title">Section 1: Post Movie</h2>
-        
-        <label>Movie Title</label>
-        <input type="text" id="movieTitle" placeholder="e.g., Spider-Man">
-        
-        <label>Upload Poster Image</label>
-        <input type="file" id="imageFile" accept="image/*">
-        
-        <label>Streaming / Watch Link</label>
-        <input type="text" id="streamLink" placeholder="Paste your video URL here">
-        
-        <button onclick="processSubmission()">Publish to Website</button>
-        
-        <div id="status-msg">Connecting to database...</div>
-    </div>
-
-    <div class="management-section">
-        <h2 class="section-title">Section 2: Manage Posts</h2>
-        <div id="live-management-feed">Fetching your active list...</div>
-    </div>
-
+    <label>Movie Title</label>
+    <input type="text" id="movieTitle" placeholder="e.g., Movie Name">
+    
+    <label>Movie Poster Image</label>
+    <input type="file" id="moviePoster" accept="image/*">
+    
+    <label>Watch / Link URL</label>
+    <input type="text" id="movieLink" placeholder="https://...">
+    
+    <button onclick="saveMovie()">Publish to Website</button>
+    
+    <div id="status">Status: Waiting for token connection...</div>
 </div>
 
 <script>
-    // =============================================================
-    // 🔐 LIVE REPOSITORY SETUP (SAFE FULL KEY)
-    // =============================================================
-    const MY_GH_REPO  = "rsatam00-star/4Klink"; // Double check spelling/casing of your username
-    const TARGET_FILE = "movies.js"; 
-
-    // 👈 Paste your complete scrambled Base64 string here inside the quotes:
-    const SAFE_ENCODED_TOKEN = "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";
+    const REPO = "rsatam00-star/4Klink";
+    const FILE_PATH = "movies.js";
     
-    const MY_GH_TOKEN = atob(SAFE_ENCODED_TOKEN).trim();
-    // =============================================================
+    let currentSha = "";
+    let movieFeedData = [];
 
-    let activeMoviesCatalog = [];
-    let fileShaTrackingToken = "";
-
-    window.onload = function() {
-        fetchDataFromCloud();
-    };
-
-    async function fetchDataFromCloud() {
-        const msgBox = document.getElementById('status-msg');
-        const feedBox = document.getElementById('live-management-feed');
-        const endpoint = `https://api.github.com/repos/${MY_GH_REPO}/contents/${TARGET_FILE}`;
-
-        try {
-            const response = await fetch(endpoint, { 
-                headers: { "Authorization": `token ${MY_GH_TOKEN}` },
-                cache: 'no-store' 
-            });
-            
-            if(!response.ok) {
-                if(response.status === 401 || response.status === 403) {
-                    throw new Error("Bad Token (Expired or wrong permissions)");
-                } else if(response.status === 404) {
-                    throw new Error("Repository or movies.js file not found");
-                } else {
-                    throw new Error(`Server returned status: ${response.status}`);
-                }
-            }
-
-            const payload = await response.json();
-            fileShaTrackingToken = payload.sha;
-            const plainText = atob(payload.content);
-
-            if(plainText.includes("movieFeedData = ")) {
-                const cleanedJson = plainText.replace("const movieFeedData = ", "").replace(";", "");
-                activeMoviesCatalog = JSON.parse(cleanedJson);
-            }
-
-            feedBox.innerHTML = `<p style='color:#4caf50;'>Successfully loaded ${activeMoviesCatalog.length} movies.</p>`;
-            msgBox.innerText = "🟢 System online. Ready to post.";
-            msgBox.style.color = "#4caf50";
-        } catch (err) {
-            msgBox.innerHTML = `❌ Connection Error.<br><span style="color:#ff8888; font-size:0.8rem;">Reason: ${err.message}</span>`;
-            msgBox.style.color = "#b84a4a";
-            feedBox.innerHTML = `<p style='color:#b84a4a;'>Database locked. Error detail: ${err.message}</p>`;
-        }
-    }
-
-    function readImageAsBase64(fileObj) {
-        return new Promise((res) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(fileObj);
-            reader.onload = () => res(reader.result);
-        });
-    }
-
-    async function processSubmission() {
-        const titleVal = document.getElementById('movieTitle').value;
-        const fileSelector = document.getElementById('imageFile');
-        const linkVal = document.getElementById('streamLink').value;
-        const msgBox = document.getElementById('status-msg');
-
-        if(!titleVal || !linkVal || !fileSelector.files[0]) {
-            msgBox.innerText = "⚠️ Error: Title, Link, and Image are required.";
-            msgBox.style.color = "orange";
+    async function connectToDatabase() {
+        const token = document.getElementById("ghToken").value.trim();
+        const statusDiv = document.getElementById("status");
+        
+        if (!token) {
+            statusDiv.innerText = "⚠️ Please paste your token first!";
+            statusDiv.style.color = "orange";
             return;
         }
 
-        msgBox.innerText = "Saving changes...";
-        msgBox.style.color = "#aaa";
+        statusDiv.innerText = "Connecting...";
+        statusDiv.style.color = "#ffc107";
 
-        const finalPoster = await readImageAsBase64(fileSelector.files[0]);
-        activeMoviesCatalog.unshift({ title: titleVal, poster: finalPoster, link: linkVal });
-
-        const uploadEndpoint = `https://api.github.com/repos/${MY_GH_REPO}/contents/${TARGET_FILE}`;
-        const outputPayloadText = `const movieFeedData = ${JSON.stringify(activeMoviesCatalog, null, 4)};`;
+        // Adding timestamp to completely bypass phone memory cache bugs
+        const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}?t=${new Date().getTime()}`;
 
         try {
-            const deliveryPayload = await fetch(uploadEndpoint, {
+            const response = await fetch(url, {
+                headers: { "Authorization": `token ${token}` }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Connection failed (Status ${response.status})`);
+            }
+
+            const data = await response.json();
+            currentSha = data.sha;
+            
+            // Decode your movies.js file text safely
+            const rawContent = atob(data.content.replace(/\s/g, ''));
+            
+            if (rawContent.includes("movieFeedData = ")) {
+                const cleanJson = rawContent.replace("const movieFeedData = ", "").replace(";", "").trim();
+                movieFeedData = JSON.parse(cleanJson);
+            } else {
+                movieFeedData = [];
+            }
+
+            statusDiv.innerText = `🟢 Connected! Found ${movieFeedData.length} active posts.`;
+            statusDiv.style.color = "#4caf50";
+
+        } catch (err) {
+            statusDiv.innerText = `❌ Error: ${err.message}. Check token or repository files.`;
+            statusDiv.style.color = "#ff5252";
+        }
+    }
+
+    function imageToBase64(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+        });
+    }
+
+    async function saveMovie() {
+        const token = document.getElementById("ghToken").value.trim();
+        const title = document.getElementById("movieTitle").value.trim();
+        const link = document.getElementById("movieLink").value.trim();
+        const fileInput = document.getElementById("moviePoster");
+        const statusDiv = document.getElementById("status");
+
+        if (!currentSha || !token) {
+            statusDiv.innerText = "⚠️ You must connect the database successfully first!";
+            statusDiv.style.color = "orange";
+            return;
+        }
+
+        if (!title || !link || !fileInput.files[0]) {
+            statusDiv.innerText = "⚠️ Fill out all fields and select a poster image.";
+            statusDiv.style.color = "orange";
+            return;
+        }
+
+        statusDiv.innerText = "Uploading to website...";
+        statusDiv.style.color = "#ffc107";
+
+        try {
+            const base64Image = await imageToBase64(fileInput.files[0]);
+            
+            // Add new post to the front of your data list
+            movieFeedData.unshift({ title: title, poster: base64Image, link: link });
+            
+            const updatedContentText = `const movieFeedData = ${JSON.stringify(movieFeedData, null, 4)};`;
+            const base64EncodedPayload = btoa(unescape(encodeURIComponent(updatedContentText)));
+
+            const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`;
+            const uploadResponse = await fetch(url, {
                 method: "PUT",
-                headers: { "Authorization": `token ${MY_GH_TOKEN}`, "Content-Type": "application/json" },
+                headers: { 
+                    "Authorization": `token ${token}`,
+                    "Content-Type": "application/json"
+                },
                 body: JSON.stringify({
-                    message: "Catalog updated",
-                    content: btoa(unescape(encodeURIComponent(outputPayloadText))),
-                    sha: fileShaTrackingToken
+                    message: "Added new post via Admin Panel",
+                    content: base64EncodedPayload,
+                    sha: currentSha
                 })
             });
 
-            if(deliveryPayload.ok) {
-                msgBox.innerText = "🎉 Update successful! Refreshing site...";
-                msgBox.style.color = "#4caf50";
-                setTimeout(() => { location.reload(); }, 1500);
+            if (uploadResponse.ok) {
+                statusDiv.innerText = "🎉 Movie Published Successfully! Refreshing list...";
+                statusDiv.style.color = "#4caf50";
+                
+                // Clear fields for your next entry
+                document.getElementById("movieTitle").value = "";
+                document.getElementById("movieLink").value = "";
+                fileInput.value = "";
+                
+                // Refresh data status
+                setTimeout(connectToDatabase, 1500);
             } else {
-                throw new Error("Save rejected by GitHub");
+                throw new Error("GitHub rejected the save update.");
             }
+
         } catch (err) {
-            msgBox.innerText = `❌ Sync Failed: ${err.message}`;
-            msgBox.style.color = "#b84a4a";
+            statusDiv.innerText = `❌ Upload Failed: ${err.message}`;
+            statusDiv.style.color = "#ff5252";
         }
     }
 </script>
+
 </body>
 </html>
