@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4Klink Admin Panel (Auto-Refresh)</title>
+    <title>4Klink Admin Panel (Cache Buster)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -128,18 +128,29 @@
         statusDiv.innerText = "Connecting...";
         statusDiv.style.color = "#ffc107";
 
-        const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}?t=${new Date().getTime()}`;
+        // Adding a randomized string to forcefully break any local cache files
+        const uniqueId = new Date().getTime() + "_" + Math.random().toString(36).substring(2, 9);
+        const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}?nocache=${uniqueId}`;
 
         try {
-            const response = await fetch(url, { headers: { "Authorization": `token ${token}` } });
+            const response = await fetch(url, { 
+                headers: { "Authorization": `token ${token}` },
+                cache: 'no-store'
+            });
             if (!response.ok) throw new Error(`Connection failed (Status ${response.status})`);
 
             const data = await response.json();
             currentSha = data.sha;
             
-            const rawContent = atob(data.content.replace(/\s/g, ''));
-            if (rawContent.includes("movieFeedData = ")) {
-                const cleanJson = rawContent.replace("const movieFeedData = ", "").replace(";", "").trim();
+            // Safe clean conversion of character array data
+            const cleanRawText = atob(data.content.replace(/[\s\n\r]/g, ''));
+            
+            if (cleanRawText.includes("movieFeedData=")) {
+                const cleanJson = cleanRawText.replace("constmovieFeedData=", "").replace(";", "").trim();
+                movieFeedData = JSON.parse(cleanJson);
+            } else if (cleanRawText.includes("movieFeedData\s*=\s*")) {
+                // Catch variant spacing formatting models
+                const cleanJson = cleanRawText.split(/movieFeedData\s*=\s*/)[1].replace(";", "").trim();
                 movieFeedData = JSON.parse(cleanJson);
             } else {
                 movieFeedData = [];
@@ -213,11 +224,8 @@
                 statusDiv.innerText = "🎉 Database updated successfully!";
                 statusDiv.style.color = "#4caf50";
                 
-                // Fetch the new SHA directly from the response so we can do multiple actions without reloading!
                 const resData = await uploadResponse.json();
                 currentSha = resData.content.sha;
-                
-                // Immediately refresh Section 2 on screen!
                 renderMovieList();
             } else {
                 throw new Error("GitHub push write rejected.");
