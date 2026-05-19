@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4Klink Admin Panel (Image Auto-Compress)</title>
+    <title>4Klink Admin Panel (Fixed Compressor)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -91,7 +91,7 @@
         <label>Movie Title</label>
         <input type="text" id="movieTitle" placeholder="e.g., Movie Name">
         
-        <label>Movie Poster Image (Auto-Compresses)</label>
+        <label>Movie Poster Image</label>
         <input type="file" id="moviePoster" accept="image/*">
         
         <label>Watch / Link URL</label>
@@ -193,7 +193,7 @@
         });
     }
 
-    // New internal function to shrink down large smartphone images instantly
+    // FIXED IMAGE COMPRESSOR FUNCTION
     function compressImage(file) {
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -203,17 +203,15 @@
                 img.src = event.target.result;
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    // Lock dimensions to thumbnail poster size
                     const MAX_WIDTH = 300;
                     const scaleSize = MAX_WIDTH / img.width;
                     canvas.width = MAX_WIDTH;
                     canvas.height = img.height * scaleSize;
 
-                    const ctx = canvas.getContext('2array') || canvas.getContext('2d');
+                    const ctx = canvas.getContext('2d'); // Typos completely removed here!
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                     
-                    // Compress to a highly efficient, lightweight JPEG file format representation
-                    resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    resolve(canvas.toDataURL('image/jpeg', 0.6)); // Outputs tiny, clean, safe data
                 };
             };
         });
@@ -274,7 +272,7 @@
             return;
         }
 
-        statusDiv.innerText = "Compressing poster image...";
+        statusDiv.innerText = "Compressing poster image safely...";
         statusDiv.style.color = "#ffc107";
 
         const compressedBase64Image = await compressImage(fileInput.files[0]);
@@ -284,7 +282,7 @@
         document.getElementById("movieLink").value = "";
         fileInput.value = "";
 
-        await pushUpdateToGitHub(movieFeedData, "Added new movie post with optimized compressed image");
+        await pushUpdateToGitHub(movieFeedData, "Added movie with verified compressor");
     }
 
     async function editPost(index) {
