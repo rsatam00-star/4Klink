@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4Klink Admin Panel (Full Controls)</title>
+    <title>4Klink Admin Panel (Auto-Refresh)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -168,7 +168,7 @@
             const item = document.createElement("div");
             item.className = "movie-item";
             item.innerHTML = `
-                <div class="movie-info" id="title-text-${index}">${movie.title}</div>
+                <div class="movie-info">${movie.title}</div>
                 <div style="font-size:0.75rem; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${movie.link}</div>
                 <div class="action-btns">
                     <button class="edit-btn" onclick="editPost(${index})">✏️ Edit</button>
@@ -212,7 +212,13 @@
             if (uploadResponse.ok) {
                 statusDiv.innerText = "🎉 Database updated successfully!";
                 statusDiv.style.color = "#4caf50";
-                setTimeout(connectToDatabase, 1000);
+                
+                // Fetch the new SHA directly from the response so we can do multiple actions without reloading!
+                const resData = await uploadResponse.json();
+                currentSha = resData.content.sha;
+                
+                // Immediately refresh Section 2 on screen!
+                renderMovieList();
             } else {
                 throw new Error("GitHub push write rejected.");
             }
@@ -246,7 +252,7 @@
         document.getElementById("movieLink").value = "";
         fileInput.value = "";
 
-        await pushUpdateToGitHub(movieFeedData, "Added new movie post via upgraded admin panel");
+        await pushUpdateToGitHub(movieFeedData, "Added new movie post");
     }
 
     async function editPost(index) {
@@ -254,7 +260,7 @@
         const newTitle = prompt("Edit Movie Title:", targetMovie.title);
         const newLink = prompt("Edit Watch Link URL:", targetMovie.link);
 
-        if (newTitle === null || newLink === null) return; // Cancelled
+        if (newTitle === null || newLink === null) return;
 
         if (!newTitle.trim() || !newLink.trim()) {
             alert("Fields cannot be empty!");
@@ -268,12 +274,10 @@
     }
 
     async function deletePost(index) {
-        const confirmDelete = confirm(`Are you absolutely sure you want to delete "${movieFeedData[index].title}"?`);
+        const confirmDelete = confirm(`Are you sure you want to delete "${movieFeedData[index].title}"?`);
         if (!confirmDelete) return;
 
-        // Remove the selected item from the array index tracking
         movieFeedData.splice(index, 1);
-
         await pushUpdateToGitHub(movieFeedData, "Deleted movie post entry");
     }
 </script>
