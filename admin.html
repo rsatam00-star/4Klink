@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4Klink Admin Panel</title>
+    <title>4Klink Admin Panel (Full Controls)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -18,11 +18,14 @@
         .container {
             width: 100%;
             max-width: 450px;
+            box-sizing: border-box;
+        }
+        .section-box {
             background-color: #222222;
             padding: 20px;
             border-radius: 10px;
-            box-sizing: border-box;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            margin-bottom: 25px;
         }
         h2 { text-align: center; color: #d78a76; margin-top: 0; }
         label { display: block; margin-top: 12px; color: #aaa; font-size: 0.9rem; }
@@ -53,32 +56,56 @@
             font-weight: bold;
             color: #ffc107;
             font-size: 0.95rem;
+            line-height: 1.4;
         }
+        .movie-item {
+            background: #2a2a2a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border: 1px solid #444;
+        }
+        .movie-info { font-weight: bold; color: #fff; font-size: 0.95rem; }
+        .action-btns { display: flex; gap: 8px; margin-top: 5px; }
+        .edit-btn { background-color: #0288d1; color: white; padding: 6px; font-size: 0.85rem; border-radius: 4px; border:none; margin:0; width:50%; }
+        .delete-btn { background-color: #d32f2f; color: white; padding: 6px; font-size: 0.85rem; border-radius: 4px; border:none; margin:0; width:50%; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>4Klink Dashboard</h2>
     
-    <label>GitHub Personal Access Token (ghp_...)</label>
-    <input type="password" id="ghToken" placeholder="Paste your full token here">
-    <button onclick="connectToDatabase()" style="margin-top: 8px; background-color: #4caf50; color: white;">Connect Database</button>
-    
-    <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
+    <div class="section-box">
+        <h2>4Klink Authentication</h2>
+        <label>GitHub Personal Access Token (ghp_...)</label>
+        <input type="password" id="ghToken" placeholder="Paste your token here">
+        <button onclick="connectToDatabase()" style="margin-top: 8px; background-color: #4caf50; color: white;">Connect Database</button>
+        <div id="status">Status: Waiting for token connection...</div>
+    </div>
 
-    <label>Movie Title</label>
-    <input type="text" id="movieTitle" placeholder="e.g., Movie Name">
-    
-    <label>Movie Poster Image</label>
-    <input type="file" id="moviePoster" accept="image/*">
-    
-    <label>Watch / Link URL</label>
-    <input type="text" id="movieLink" placeholder="https://...">
-    
-    <button onclick="saveMovie()">Publish to Website</button>
-    
-    <div id="status">Status: Waiting for token connection...</div>
+    <div class="section-box">
+        <h2>Section 1: Post Movie</h2>
+        <label>Movie Title</label>
+        <input type="text" id="movieTitle" placeholder="e.g., Movie Name">
+        
+        <label>Movie Poster Image</label>
+        <input type="file" id="moviePoster" accept="image/*">
+        
+        <label>Watch / Link URL</label>
+        <input type="text" id="movieLink" placeholder="https://...">
+        
+        <button onclick="saveMovie()">Publish to Website</button>
+    </div>
+
+    <div class="section-box">
+        <h2>Section 2: Manage Posts (Edit/Delete)</h2>
+        <div id="movie-list-container" style="color: #aaa; text-align: center; font-size: 0.9rem;">
+            Connect your database above to manage existing active posts.
+        </div>
+    </div>
 </div>
 
 <script>
@@ -101,24 +128,16 @@
         statusDiv.innerText = "Connecting...";
         statusDiv.style.color = "#ffc107";
 
-        // Adding timestamp to completely bypass phone memory cache bugs
         const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}?t=${new Date().getTime()}`;
 
         try {
-            const response = await fetch(url, {
-                headers: { "Authorization": `token ${token}` }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Connection failed (Status ${response.status})`);
-            }
+            const response = await fetch(url, { headers: { "Authorization": `token ${token}` } });
+            if (!response.ok) throw new Error(`Connection failed (Status ${response.status})`);
 
             const data = await response.json();
             currentSha = data.sha;
             
-            // Decode your movies.js file text safely
             const rawContent = atob(data.content.replace(/\s/g, ''));
-            
             if (rawContent.includes("movieFeedData = ")) {
                 const cleanJson = rawContent.replace("const movieFeedData = ", "").replace(";", "").trim();
                 movieFeedData = JSON.parse(cleanJson);
@@ -128,11 +147,36 @@
 
             statusDiv.innerText = `🟢 Connected! Found ${movieFeedData.length} active posts.`;
             statusDiv.style.color = "#4caf50";
+            
+            renderMovieList();
 
         } catch (err) {
             statusDiv.innerText = `❌ Error: ${err.message}. Check token or repository files.`;
             statusDiv.style.color = "#ff5252";
         }
+    }
+
+    function renderMovieList() {
+        const container = document.getElementById("movie-list-container");
+        if (movieFeedData.length === 0) {
+            container.innerHTML = "No movies posted yet.";
+            return;
+        }
+
+        container.innerHTML = "";
+        movieFeedData.forEach((movie, index) => {
+            const item = document.createElement("div");
+            item.className = "movie-item";
+            item.innerHTML = `
+                <div class="movie-info" id="title-text-${index}">${movie.title}</div>
+                <div style="font-size:0.75rem; color:#888; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${movie.link}</div>
+                <div class="action-btns">
+                    <button class="edit-btn" onclick="editPost(${index})">✏️ Edit</button>
+                    <button class="delete-btn" onclick="deletePost(${index})">🗑️ Delete</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
     }
 
     function imageToBase64(file) {
@@ -143,70 +187,94 @@
         });
     }
 
-    async function saveMovie() {
+    async function pushUpdateToGitHub(updatedData, logMessage) {
         const token = document.getElementById("ghToken").value.trim();
-        const title = document.getElementById("movieTitle").value.trim();
-        const link = document.getElementById("movieLink").value.trim();
-        const fileInput = document.getElementById("moviePoster");
         const statusDiv = document.getElementById("status");
-
-        if (!currentSha || !token) {
-            statusDiv.innerText = "⚠️ You must connect the database successfully first!";
-            statusDiv.style.color = "orange";
-            return;
-        }
-
-        if (!title || !link || !fileInput.files[0]) {
-            statusDiv.innerText = "⚠️ Fill out all fields and select a poster image.";
-            statusDiv.style.color = "orange";
-            return;
-        }
-
-        statusDiv.innerText = "Uploading to website...";
+        
+        statusDiv.innerText = "Syncing changes to GitHub...";
         statusDiv.style.color = "#ffc107";
 
         try {
-            const base64Image = await imageToBase64(fileInput.files[0]);
-            
-            // Add new post to the front of your data list
-            movieFeedData.unshift({ title: title, poster: base64Image, link: link });
-            
-            const updatedContentText = `const movieFeedData = ${JSON.stringify(movieFeedData, null, 4)};`;
+            const updatedContentText = `const movieFeedData = ${JSON.stringify(updatedData, null, 4)};`;
             const base64EncodedPayload = btoa(unescape(encodeURIComponent(updatedContentText)));
 
             const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}`;
             const uploadResponse = await fetch(url, {
                 method: "PUT",
-                headers: { 
-                    "Authorization": `token ${token}`,
-                    "Content-Type": "application/json"
-                },
+                headers: { "Authorization": `token ${token}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    message: "Added new post via Admin Panel",
+                    message: logMessage,
                     content: base64EncodedPayload,
                     sha: currentSha
                 })
             });
 
             if (uploadResponse.ok) {
-                statusDiv.innerText = "🎉 Movie Published Successfully! Refreshing list...";
+                statusDiv.innerText = "🎉 Database updated successfully!";
                 statusDiv.style.color = "#4caf50";
-                
-                // Clear fields for your next entry
-                document.getElementById("movieTitle").value = "";
-                document.getElementById("movieLink").value = "";
-                fileInput.value = "";
-                
-                // Refresh data status
-                setTimeout(connectToDatabase, 1500);
+                setTimeout(connectToDatabase, 1000);
             } else {
-                throw new Error("GitHub rejected the save update.");
+                throw new Error("GitHub push write rejected.");
             }
-
         } catch (err) {
-            statusDiv.innerText = `❌ Upload Failed: ${err.message}`;
+            statusDiv.innerText = `❌ Action Failed: ${err.message}`;
             statusDiv.style.color = "#ff5252";
         }
+    }
+
+    async function saveMovie() {
+        const title = document.getElementById("movieTitle").value.trim();
+        const link = document.getElementById("movieLink").value.trim();
+        const fileInput = document.getElementById("moviePoster");
+        const statusDiv = document.getElementById("status");
+
+        if (!currentSha) {
+            statusDiv.innerText = "⚠️ Make sure you hit 'Connect Database' successfully first!";
+            statusDiv.style.color = "orange";
+            return;
+        }
+        if (!title || !link || !fileInput.files[0]) {
+            statusDiv.innerText = "⚠️ Fill out all fields and select a poster image.";
+            statusDiv.style.color = "orange";
+            return;
+        }
+
+        const base64Image = await imageToBase64(fileInput.files[0]);
+        movieFeedData.unshift({ title: title, poster: base64Image, link: link });
+        
+        document.getElementById("movieTitle").value = "";
+        document.getElementById("movieLink").value = "";
+        fileInput.value = "";
+
+        await pushUpdateToGitHub(movieFeedData, "Added new movie post via upgraded admin panel");
+    }
+
+    async function editPost(index) {
+        const targetMovie = movieFeedData[index];
+        const newTitle = prompt("Edit Movie Title:", targetMovie.title);
+        const newLink = prompt("Edit Watch Link URL:", targetMovie.link);
+
+        if (newTitle === null || newLink === null) return; // Cancelled
+
+        if (!newTitle.trim() || !newLink.trim()) {
+            alert("Fields cannot be empty!");
+            return;
+        }
+
+        movieFeedData[index].title = newTitle.trim();
+        movieFeedData[index].link = newLink.trim();
+
+        await pushUpdateToGitHub(movieFeedData, `Edited entry: ${newTitle}`);
+    }
+
+    async function deletePost(index) {
+        const confirmDelete = confirm(`Are you absolutely sure you want to delete "${movieFeedData[index].title}"?`);
+        if (!confirmDelete) return;
+
+        // Remove the selected item from the array index tracking
+        movieFeedData.splice(index, 1);
+
+        await pushUpdateToGitHub(movieFeedData, "Deleted movie post entry");
     }
 </script>
 
