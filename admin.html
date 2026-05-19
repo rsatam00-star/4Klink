@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4Klink Admin Panel (Cache Buster)</title>
+    <title>4Klink Admin Panel (Robust Parser)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -115,6 +115,16 @@
     let currentSha = "";
     let movieFeedData = [];
 
+    // Safe Base64 decoding wrapper that handles UTF-8 correctly
+    function decodeBase64ToText(base64Str) {
+        const decoded = atob(base64Str.replace(/\s/g, ''));
+        try {
+            return decodeURIComponent(escape(decoded));
+        } catch (e) {
+            return decoded;
+        }
+    }
+
     async function connectToDatabase() {
         const token = document.getElementById("ghToken").value.trim();
         const statusDiv = document.getElementById("status");
@@ -128,9 +138,8 @@
         statusDiv.innerText = "Connecting...";
         statusDiv.style.color = "#ffc107";
 
-        // Adding a randomized string to forcefully break any local cache files
-        const uniqueId = new Date().getTime() + "_" + Math.random().toString(36).substring(2, 9);
-        const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}?nocache=${uniqueId}`;
+        const uniqueId = new Date().getTime();
+        const url = `https://api.github.com/repos/${REPO}/contents/${FILE_PATH}?t=${uniqueId}`;
 
         try {
             const response = await fetch(url, { 
@@ -142,17 +151,17 @@
             const data = await response.json();
             currentSha = data.sha;
             
-            // Safe clean conversion of character array data
-            const cleanRawText = atob(data.content.replace(/[\s\n\r]/g, ''));
+            // 1. Decode the complete raw file text layout
+            const rawContentText = decodeBase64ToText(data.content);
             
-            if (cleanRawText.includes("movieFeedData=")) {
-                const cleanJson = cleanRawText.replace("constmovieFeedData=", "").replace(";", "").trim();
-                movieFeedData = JSON.parse(cleanJson);
-            } else if (cleanRawText.includes("movieFeedData\s*=\s*")) {
-                // Catch variant spacing formatting models
-                const cleanJson = cleanRawText.split(/movieFeedData\s*=\s*/)[1].replace(";", "").trim();
-                movieFeedData = JSON.parse(cleanJson);
+            // 2. Smart Parser: Locate anything after "movieFeedData =" up to the semicolon
+            const match = rawContentText.match(/movieFeedData\s*=\s*([\s\S]*?);/);
+            
+            if (match && match[1]) {
+                const jsonString = match[1].trim();
+                movieFeedData = JSON.parse(jsonString);
             } else {
+                // Fallback plan if the file format is completely blank or missing structures
                 movieFeedData = [];
             }
 
